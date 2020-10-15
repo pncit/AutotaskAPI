@@ -35,10 +35,15 @@ function New-ResourceDynamicParameter
 
         }
     }
-    $ResourceList = foreach ($query in  $Queries | where-object { $null -ne $_."$ParameterType" }  ) {
-        $resource = $query."$ParameterType" | Select-Object -last 1
-        $resource
+
+    $ResourceList = $null
+    foreach ( $ParameterTypeN in $ParameterType.Split( ' ' ) ) {
+        $ResourceList += foreach ($query in  $Queries | where-object { $null -ne $_."$ParameterTypeN" }  ) {
+            $resource = $query."$ParameterTypeN" | Select-Object -last 1
+            $resource
+        }
     }
+    $ResourceList = $ResourceList | Sort-Object -Unique
 
     $ValidateSetAttribute = New-Object System.Management.Automation.ValidateSetAttribute($ResourceList)
     $AttributeCollection.Add($ValidateSetAttribute)
@@ -104,6 +109,7 @@ function Add-AutotaskBaseURI (
     $Script:PatchParameter = New-ResourceDynamicParameter -Parametertype "Patch"
     $Script:DeleteParameter = New-ResourceDynamicParameter -Parametertype "Delete"
     $Script:POSTParameter = New-ResourceDynamicParameter -Parametertype "Post"
+    $Script:PostPatchParameter = New-ResourceDynamicParameter -Parametertype "Post Patch"
 }
 <#
 .SYNOPSIS
@@ -455,7 +461,7 @@ function New-AutotaskBody {
         [Parameter(Mandatory = $false)][switch]$NoContent
     )
     DynamicParam {
-        $Script:PatchParameter
+        $Script:PostPatchParameter
     }
     begin {
         if (!$Script:AutotaskAuthHeader -or !$Script:AutotaskBaseURI) {
@@ -466,7 +472,10 @@ function New-AutotaskBody {
         $Headers = $Script:AutotaskAuthHeader
     }
     process {
-        $ResourceURL = (($Script:Queries | Where-Object { $_.'Patch' -eq $Resource }).Name | Select-Object -first 1) -replace '/query', '' | Select-Object -first 1
+        $ResourceURL = (($Script:Queries | Where-Object { $_.'Post' -eq $Resource }).Name | Select-Object -first 1) -replace '/query', '' | Select-Object -first 1
+        if ( !$ResourceURL ) {
+            $ResourceURL = (($Script:Queries | Where-Object { $_.'Patch' -eq $Resource }).Name | Select-Object -first 1) -replace '/query', '' | Select-Object -first 1
+        }
         try {
             $resource = $PSBoundParameters.resource
             $ObjectTemplate = (Invoke-RestMethod -Uri "$($Script:AutotaskBaseURI)/$($resourceURL)/entityInformation/fields" -headers $Headers -Method Get).fields
