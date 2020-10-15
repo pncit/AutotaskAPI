@@ -354,14 +354,17 @@ function New-AutotaskAPIResource {
         }
         $resource = $PSBoundParameters.resource
         $headers = $Script:AutotaskAuthHeader
-        $ResourceURL = (($Script:Queries | Where-Object { $_.'Post' -eq $Resource }).Name | Select-Object -first 1) -replace '/query', '' -replace '{parentId}', $ParentId | Select-Object -first 1
+        $ResourceURL = (($Script:Queries | Where-Object { $_.'Post' -eq $Resource }).Name | Select-Object -first 1) -replace '/query', '' | Select-Object -first 1
     }
     
     process {
-        if ($resource -like "*child*" -and !$ParentId) { 
-            Write-Warning "You must specify a parentId when creating a child resource" 
-            break 
-        }
+        if ($resource -like "*child*" ) {
+            if ( !$ParentId ) {
+                Write-Warning "You must specify a parentId when creating a child resource" 
+                break 
+            }
+            $ResourceURL = $resourceURL -replace '{parentId}', $ParentId
+        } 
         $SendingBody = $body | ConvertTo-Json -Depth 10
         try {
             Invoke-RestMethod -Uri "$($Script:AutotaskBaseURI)/$($resourceurl)"  -headers $Headers -Method post -Body $SendingBody
